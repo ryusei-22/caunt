@@ -1,6 +1,11 @@
-/* ===========================
-   共通変数・リセット
-=========================== */
+/* Netlify バッジを非表示 */
+[data-netlify-badge],
+#netlify-badge,
+.netlify-badge {
+  display: none !important;
+}
+
+
 :root {
   --color-primary: #4f46e5;
   --color-primary-dark: #3730a3;
