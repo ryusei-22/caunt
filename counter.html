@@ -114,15 +114,6 @@
       setTimeout(() => { el.className = 'feedback'; }, 3000);
     }
   </script>
-  <script>
-    const removeBadge = () => {
-      document.querySelectorAll('a[href*="netlify.com"]').forEach(el => {
-        const root = el.closest('[style*="position: fixed"], [style*="position:fixed"]') || el.parentElement;
-        if (root) root.remove();
-      });
-    };
-    removeBadge();
-    new MutationObserver(removeBadge).observe(document.body, { childList: true, subtree: true });
-  </script>
+  <script src="js/remove-badge.js"></script>
 </body>
 </html>
