@@ -16,4 +16,4 @@ export const FIREBASE_CONFIG = {
 export const EVENT_ID = "event-2026";
 
 // 管理者パスワード（リセット時に使用）
-export const ADMIN_PASSWORD = "change-me-before-use";
+export const ADMIN_PASSWORD = "ce";
