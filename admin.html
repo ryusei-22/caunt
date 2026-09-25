@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>管理画面 | 来場者カウンター</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <!-- QRコード生成ライブラリ -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body class="admin-page">
+  <header class="page-header">
+    <a href="index.html" class="back-link">← 戻る</a>
+    <h1>管理画面</h1>
+  </header>
+
+  <main class="admin-main">
+    <!-- 合計カウント表示 -->
+    <section class="total-section">
+      <span class="label">合計来場者数</span>
+      <div class="total-number-wrap">
+        <span id="total-count" class="total-number">-</span>
+        <span class="total-unit">人</span>
+      </div>
+      <p class="realtime-badge">🔴 リアルタイム更新中</p>
+    </section>
+
+    <!-- セッション別内訳 -->
+    <section class="breakdown-section">
+      <h2>スタッフ別内訳</h2>
+      <ul id="session-list" class="session-list">
+        <li class="empty-state">データなし</li>
+      </ul>
+    </section>
+
+    <!-- リセット -->
+    <section class="reset-section">
+      <button id="reset-btn" class="btn-reset">カウントをリセット</button>
+    </section>
+
+    <!-- QRコード -->
+    <section class="qr-section">
+      <h2>カウンターQRコード</h2>
+      <p class="qr-desc">スタッフにこのQRコードを読み取ってもらってください</p>
+      <div id="qrcode" class="qr-code-container"></div>
+      <p id="counter-url" class="counter-url-text"></p>
+    </section>
+  </main>
+
+  <!-- リセット確認モーダル -->
+  <div id="reset-modal" class="modal-overlay" hidden>
+    <div class="modal">
+      <h3>カウントをリセットしますか？</h3>
+      <p>この操作は取り消せません。</p>
+      <input type="password" id="reset-password" placeholder="管理者パスワード" class="modal-input" />
+      <div class="modal-buttons">
+        <button id="modal-cancel" class="btn-secondary">キャンセル</button>
+        <button id="modal-confirm" class="btn-danger">リセットする</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js';
+    import { getFirestore, doc, collection, onSnapshot, writeBatch, getDocs } from 'https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js';
+    import { FIREBASE_CONFIG, EVENT_ID, ADMIN_PASSWORD } from './js/firebase-config.js';
+
+    const app = initializeApp(FIREBASE_CONFIG);
+    const db = getFirestore(app);
+
+    const eventRef = doc(db, 'events', EVENT_ID);
+    const sessionsRef = collection(db, 'events', EVENT_ID, 'sessions');
+
+    // 合計カウントをリアルタイム監視
+    onSnapshot(eventRef, (snap) => {
+      const total = snap.exists() ? (snap.data().totalCount || 0) : 0;
+      document.getElementById('total-count').textContent = total.toLocaleString();
+    });
+
+    // セッション別カウントをリアルタイム監視
+    let sessionNumber = 1;
+    const sessionNames = {};
+    onSnapshot(sessionsRef, (snap) => {
+      const list = document.getElementById('session-list');
+      if (snap.empty) {
+        list.innerHTML = '<li class="empty-state">データなし</li>';
+        return;
+      }
+      list.innerHTML = '';
+      let index = 1;
+      snap.forEach((docSnap) => {
+        const id = docSnap.id;
+        if (!sessionNames[id]) sessionNames[id] = `スタッフ ${index}`;
+        const count = docSnap.data().count || 0;
+        const li = document.createElement('li');
+        li.className = 'session-item';
+        li.innerHTML = `<span class="session-name">${sessionNames[id]}</span><span class="session-count">${count} 人</span>`;
+        list.appendChild(li);
+        index++;
+      });
+    });
+
+    // QRコード生成
+    const counterUrl = `${location.origin}/counter.html`;
+    document.getElementById('counter-url').textContent = counterUrl;
+    new QRCode(document.getElementById('qrcode'), {
+      text: counterUrl,
+      width: 200,
+      height: 200,
+      colorDark: '#1a1a2e',
+      colorLight: '#ffffff',
+    });
+
+    // リセット処理
+    document.getElementById('reset-btn').addEventListener('click', () => {
+      document.getElementById('reset-modal').hidden = false;
+      document.getElementById('reset-password').value = '';
+      document.getElementById('reset-password').focus();
+    });
+
+    document.getElementById('modal-cancel').addEventListener('click', () => {
+      document.getElementById('reset-modal').hidden = true;
+    });
+
+    document.getElementById('modal-confirm').addEventListener('click', async () => {
+      const pw = document.getElementById('reset-password').value;
+      if (pw !== ADMIN_PASSWORD) {
+        alert('パスワードが違います');
+        return;
+      }
+      try {
+        const batch = writeBatch(db);
+        const sessions = await getDocs(sessionsRef);
+        sessions.forEach((s) => batch.delete(s.ref));
+        batch.set(eventRef, { totalCount: 0 });
+        await batch.commit();
+        document.getElementById('reset-modal').hidden = true;
+        alert('リセットしました');
+      } catch (e) {
+        alert('リセットに失敗しました: ' + e.message);
+      }
+    });
+
+    // モーダル外クリックで閉じる
+    document.getElementById('reset-modal').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) e.currentTarget.hidden = true;
+    });
+  </script>
+</body>
+</html>

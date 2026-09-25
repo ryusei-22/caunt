@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>カウンター | 来場者カウンター</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="counter-page">
+  <header class="page-header">
+    <a href="index.html" class="back-link">← 戻る</a>
+    <h1>カウンター</h1>
+  </header>
+
+  <main class="counter-main">
+    <div class="my-count-display">
+      <span class="label">自分のカウント</span>
+      <span id="my-count" class="my-count-number">0</span>
+    </div>
+
+    <button id="count-btn" class="count-button" aria-label="来場者を1人カウント">
+      <span class="count-btn-icon">＋</span>
+      <span class="count-btn-label">タップしてカウント</span>
+    </button>
+
+    <div class="total-mini">
+      合計: <strong id="total-count-mini">-</strong> 人
+    </div>
+  </main>
+
+  <div id="feedback" class="feedback" aria-live="polite"></div>
+
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js';
+    import { getFirestore, doc, runTransaction, onSnapshot, increment } from 'https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js';
+    import { FIREBASE_CONFIG, EVENT_ID } from './js/firebase-config.js';
+
+    const app = initializeApp(FIREBASE_CONFIG);
+    const db = getFirestore(app);
+
+    // セッションIDを localStorage から取得（なければ生成）
+    let sessionId = localStorage.getItem('caunt_session_id');
+    if (!sessionId) {
+      sessionId = crypto.randomUUID();
+      localStorage.setItem('caunt_session_id', sessionId);
+    }
+
+    const eventRef = doc(db, 'events', EVENT_ID);
+    const sessionRef = doc(db, 'events', EVENT_ID, 'sessions', sessionId);
+
+    let myCount = 0;
+    let isProcessing = false;
+
+    // 自セッションのカウントを監視
+    onSnapshot(sessionRef, (snap) => {
+      if (snap.exists()) {
+        myCount = snap.data().count || 0;
+        document.getElementById('my-count').textContent = myCount;
+      }
+    });
+
+    // 合計カウントを監視
+    onSnapshot(eventRef, (snap) => {
+      if (snap.exists()) {
+        const total = snap.data().totalCount || 0;
+        document.getElementById('total-count-mini').textContent = total;
+      } else {
+        document.getElementById('total-count-mini').textContent = 0;
+      }
+    });
+
+    // カウントボタン処理
+    document.getElementById('count-btn').addEventListener('click', async () => {
+      if (isProcessing) return;
+      isProcessing = true;
+
+      const btn = document.getElementById('count-btn');
+      btn.classList.add('pressed');
+
+      try {
+        // トランザクションでアトミックにカウントアップ
+        await runTransaction(db, async (transaction) => {
+          const sessionDoc = await transaction.get(sessionRef);
+          const currentCount = sessionDoc.exists() ? (sessionDoc.data().count || 0) : 0;
+
+          transaction.set(sessionRef, { count: currentCount + 1, updatedAt: new Date() });
+          transaction.set(eventRef, { totalCount: increment(1) }, { merge: true });
+        });
+
+        showFeedback();
+      } catch (e) {
+        console.error('カウントエラー:', e);
+        showError();
+      } finally {
+        setTimeout(() => {
+          btn.classList.remove('pressed');
+          isProcessing = false;
+        }, 300);
+      }
+    });
+
+    function showFeedback() {
+      const el = document.getElementById('feedback');
+      el.textContent = '✓ カウントしました';
+      el.className = 'feedback show';
+      setTimeout(() => { el.className = 'feedback'; }, 1500);
+    }
+
+    function showError() {
+      const el = document.getElementById('feedback');
+      el.textContent = '⚠ エラーが発生しました。再度お試しください。';
+      el.className = 'feedback show error';
+      setTimeout(() => { el.className = 'feedback'; }, 3000);
+    }
+  </script>
+</body>
+</html>

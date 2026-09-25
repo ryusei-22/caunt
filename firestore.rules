@@ -1,0 +1,26 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /events/{eventId} {
+      // 誰でも合計カウントを読める
+      allow read: if true;
+      // totalCount のインクリメントのみ許可（任意書き換えは拒否）
+      allow write: if request.resource.data.keys().hasOnly(['totalCount'])
+                   && request.resource.data.totalCount is int;
+
+      match /sessions/{sessionId} {
+        // 誰でも全セッションを読める
+        allow read: if true;
+        // カウントは増加のみ許可
+        allow create: if request.resource.data.keys().hasAll(['count', 'updatedAt'])
+                      && request.resource.data.count == 1;
+        allow update: if request.resource.data.keys().hasAll(['count', 'updatedAt'])
+                      && request.resource.data.count == resource.data.count + 1;
+        // 削除はリセット操作用
+        allow delete: if true;
+      }
+    }
+  }
+}

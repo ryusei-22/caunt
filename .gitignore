@@ -1,0 +1,16 @@
+# 依存関係
+node_modules/
+
+# Firebase ローカルエミュレータ
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# OS ファイル
+.DS_Store
+Thumbs.db
+
+# エディタ
+.vscode/
+.idea/
